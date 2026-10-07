@@ -1,0 +1,12 @@
+[Unit]
+Description=A4Tech OP-620D Mouse Double-Click Button Filter
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/mouse_fix.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
