@@ -66,7 +66,7 @@ def main():
 
             virtual_mouse.syn()
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, OSError):
         pass
     finally:
         try:

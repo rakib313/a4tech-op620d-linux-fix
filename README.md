@@ -1,77 +1,85 @@
-# A4Tech OP-620D 2X Button Fix for Linux
+# A4Tech OP-620D Linux Fix & Drag Utility
 
-A lightweight userspace input filter that remaps the physical **"2X Click"** button on the **A4Tech OP-620D** USB mouse (`09da:c10a`) to act as a standard single left-click under Linux.
+A lightweight Linux driver and utility suite that solves the hardware limitations of the **A4Tech OP-620D** USB mouse (`09da:c10a`):
+
+1. **2X Button Single-Click Fix:** Intercepts the physical "2X" button and filters it into an instant, clean single left-click.
+2. **Keyboard-Assisted Drag-Lock:** Lets you drag windows, files, and text effortlessly using the **`Right Alt`** key, dropping naturally with a normal mouse click!
 
 ---
 
 ## The Hardware Problem
 
-The A4Tech OP-620D mouse includes a small orange/black secondary button labeled **"2X"**. On Windows, proprietary A4Tech drivers interpret this button. On Linux, standard solutions like `libinput` quirks or GUI utilities (`input-remapper`) fail due to how the mouse hardware is hardwired:
+The A4Tech OP-620D includes a secondary button labeled **"2X"**. On Linux, standard configuration tools fail due to how the mouse firmware is hardwired:
 
-1. **Spoofed Clicks:** The button does **not** emit a distinct scan code (like `BTN_EXTRA`). Instead, the firmware spoofs two standard `BTN_LEFT` events spaced ~72ms apart. The OS cannot distinguish this from a user clicking the main button twice.
-
-2. **No Hold-and-Drag Capability:** It is physically impossible to use this button for click-and-drag actions. Holding the button down does not send a continuous hold signal. Instead, the hardware controller forcefully spams a rapid press/release loop every 72ms.
-
-**`evtest` output when holding the 2X button down continuously:**
+1. **Spoofed Clicks:** The button does **not** emit a distinct scan code (like `BTN_EXTRA`). Instead, the hardware controller spoofs two standard `BTN_LEFT` events spaced ~72ms apart.
+2. **Hardcoded Firmware Cutoff (No Hardware Hold):** The mouse controller does not send a continuous hold signal when the 2X button is pressed. Instead, it emits exactly two pulses (~216ms total) and **completely cuts off USB transmission**, regardless of how long the button is held down.
 
 ```text
+evtest output when pressing/holding the 2X button:
 Event: time 1791289571.103703, type 1 (EV_KEY), code 272 (BTN_LEFT), value 1 (Press)
-Event: time 1791289571.175715, type 1 (EV_KEY), code 272 (BTN_LEFT), value 0 (Release)
-Event: time 1791289571.247728, type 1 (EV_KEY), code 272 (BTN_LEFT), value 1 (Press)
-Event: time 1791289571.319682, type 1 (EV_KEY), code 272 (BTN_LEFT), value 0 (Release)
+Event: time 1791289571.175715, type 1 (EV_KEY), code 272 (BTN_LEFT), value 0 (Release)  [+72ms]
+Event: time 1791289571.247728, type 1 (EV_KEY), code 272 (BTN_LEFT), value 1 (Press)    [+72ms]
+Event: time 1791289571.319682, type 1 (EV_KEY), code 272 (BTN_LEFT), value 0 (Release)  [+72ms]
+--- TRANSMISSION CEASES ---
 ```
+
+Because the hardware stops transmitting after 216ms and never reports when you lift your finger, the 2X button cannot physically sustain a drag on its own.
 
 ---
 
-## The Solution
+## The Complete Solution
 
-This utility uses Python's `evdev` interface to safely intercept and sanitize the hardware signals:
+This repository provides an integrated, two-part system:
 
-- Obtains an exclusive hardware lock (`grab()`) on the raw A4Tech device.
-- Filters incoming `BTN_LEFT` events using a **200ms debounce threshold**, effectively dropping the spoofed redundant hardware signals.
-- Emits a clean, single click through a virtual `uinput` mouse device.
-- Runs completely invisibly in the background via a persistent `systemd` daemon.
+### 1. Single-Click Interceptor (`mouse_fix.py`)
+* Obtains an exclusive hardware lock (`grab()`) on the raw A4Tech device via Python `evdev`.
+* Applies a 200ms debounce filter to eliminate the spoofed second hardware pulse.
+* Emits a clean, instant single click through a virtual `uinput` mouse device.
+* Runs continuously in the background via a persistent `systemd` daemon.
 
-> **Trade-off Note:** Because this filters all `BTN_LEFT` inputs, any manual left clicks made within 200ms of each other (via the main button) will also be suppressed. Your maximum manual click rate will be roughly **5 clicks per second**.
+### 2. Drag-Lock Companion (`mouse_drag_lock.py`)
+Because the mouse cannot hardware-hold, your keyboard provides the drag trigger:
+* **To Drag:** Tap the **`Right Alt`** key on your keyboard. Left-click is locked down immediately (*🔒 Drag Locked*).
+* **To Move:** Move your mouse freely anywhere (move windows, select text, drag files).
+* **To Drop:** Simply **click your mouse button (the 2X button)** at your destination! The mouse click emits a standard release, dropping the item naturally.
+* Uses direct X11 `XQueryPointer` hardware checking, ensuring state never desyncs.
 
 ---
 
 ## Installation
 
-### Automated Install (Recommended)
-
-Clone the repository and run the install script:
+Run the automated installer with root privileges:
 
 ```bash
-git clone https://github.com/<your-username>/a4tech-op620d-linux-fix.git
+git clone https://github.com/rakib313/a4tech-op620d-linux-fix.git
 cd a4tech-op620d-linux-fix
 chmod +x install.sh uninstall.sh
 sudo ./install.sh
 ```
 
-### Manual Install
+### What `install.sh` Does Automatically:
+* Installs required dependencies (`python3-evdev`).
+* Deploys `mouse_fix.py` and `mouse_drag_lock.py` to `/usr/local/bin/`.
+* Installs, enables, and restarts the `a4tech-mouse-fix.service` systemd daemon.
+* Configures global XFCE desktop application shortcuts:
+  * **`Right Alt`** (`Alt_R`) $\rightarrow$ `/usr/local/bin/mouse_drag_lock.py`
 
-If you prefer to configure the system yourself:
+---
 
-1. Install dependencies:
-   ```bash
-   sudo apt install python3-evdev
-   ```
+## Usage Workflow
 
-2. Copy `mouse_fix.py` to `/usr/local/bin/` and `chmod 755`.
-
-3. Copy `a4tech-mouse-fix.service` to `/etc/systemd/system/`.
-
-4. Enable the service:
-   ```bash
-   sudo systemctl enable --now a4tech-mouse-fix.service
-   ```
+| Action | How to Do It |
+| :--- | :--- |
+| **Normal Single Click** | Tap the mouse **2X button**. |
+| **Start Dragging** | Hover over item and tap **`Right Alt`**. |
+| **Drop Item** | Click the mouse **2X button** at your destination. |
+| **Cancel Drag** | Tap **`Right Alt`** again if you change your mind without clicking. |
 
 ---
 
 ## Uninstallation
 
-Run the uninstaller to remove all files and restore the original hardware behavior:
+To completely remove the background service, scripts, and shortcuts:
 
 ```bash
 sudo ./uninstall.sh
@@ -82,5 +90,3 @@ sudo ./uninstall.sh
 ## License
 
 MIT
-
----
