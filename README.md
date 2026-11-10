@@ -60,7 +60,7 @@ This repository provides an integrated two-part solution:
 [ A4Tech OP-620D Mouse ]
        │
        ▼ (Raw USB evdev events)
-[ mouse_fix.py (systemd daemon) ] ── (grabs physical device & applies 200ms debounce)
+[ mouse_fix.py (systemd daemon) ] ── (grabs physical device & applies 160ms debounce)
        │
        ▼ (Clean virtual pointer events)
 [ /dev/uinput (Virtual Mouse) ] ────► [ Desktop Session ]
@@ -75,7 +75,7 @@ This repository provides an integrated two-part solution:
 
 ### 1. Single-Click Interceptor (`mouse_fix.py`)
 * Obtains an exclusive hardware lock (`grab()`) on the raw A4Tech device via Python `evdev`.
-* Applies a 200 ms debounce filter to swallow the spoofed second hardware pulse.
+* Applies a 160 ms debounce filter to swallow the spoofed second hardware pulse.
 * Emits a clean, instant single click through a virtual `uinput` mouse device.
 * Runs continuously in the background as a lightweight `systemd` daemon.
 
@@ -211,7 +211,7 @@ A notification should appear stating `🔒 Drag Locked`. Click anywhere with you
 If your mouse requires a slightly shorter or longer window to filter the double-click pulse, adjust `DEBOUNCE_THRESHOLD` in `/usr/local/bin/mouse_fix.py` (or directly in `mouse_fix.py` before installing):
 
 ```python
-DEBOUNCE_THRESHOLD = 0.20  # Default is 200 ms (0.20s)
+DEBOUNCE_THRESHOLD = 0.16  # Default is 160 ms (0.16s)
 ```
 After editing, restart the service:
 ```bash

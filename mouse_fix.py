@@ -11,7 +11,7 @@ from evdev import UInput, ecodes
 
 VENDOR_ID = 0x09DA
 PRODUCT_ID = 0xC10A
-DEBOUNCE_THRESHOLD = 0.20  # 200 ms
+DEBOUNCE_THRESHOLD = 0.16  # 160 ms
 
 
 def locate_device():
